@@ -1,14 +1,18 @@
 package com.lucasmanoel.usuario.controller;
 
 import com.lucasmanoel.usuario.business.UsuarioService;
-import com.lucasmanoel.usuario.business.dto.UsuarioDTO;
-import com.lucasmanoel.usuario.business.dto.UsuarioDTOResponse;
-import com.lucasmanoel.usuario.business.dto.UsuarioLoginRequest;
+import com.lucasmanoel.usuario.business.dto.request.LoginRequest;
+import com.lucasmanoel.usuario.business.dto.request.RegisterUserRequest;
+import com.lucasmanoel.usuario.business.dto.request.UsuarioRequest;
+import com.lucasmanoel.usuario.business.dto.response.LoginResponse;
+import com.lucasmanoel.usuario.business.dto.response.RegisterUserResponse;
+import com.lucasmanoel.usuario.business.dto.response.UsuarioResponse;
 import com.lucasmanoel.usuario.infrastructure.security.SecurityConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,51 +28,49 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
 
     @PostMapping
-    @Operation(summary = "Cadastro usuario", description = "Cria um novo usuario")
-    @ApiResponse(responseCode = "201", description = "Usuario cadastrado com sucesso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos para a criação do usuario")
-    @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
-    public ResponseEntity<UsuarioDTOResponse> cadastraUsuario(@RequestBody UsuarioDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.cadastraUsuario(dto));
-    }
-
-    @PutMapping
-    @Operation(summary = "Altera usuario", description = "Altera dados do usuario")
-    @ApiResponse(responseCode = "200", description = "Dados alterados com sucesso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    @ApiResponse(responseCode = "401", description = "Usuário não autenticado")
-    @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
-    public ResponseEntity<UsuarioDTOResponse> alteraUsuario(@RequestHeader("Authorization") String token, @RequestBody UsuarioDTO dto) {
-        return ResponseEntity.ok(usuarioService.alteraUsuario(token, dto));
-    }
-
-    @GetMapping
-    @Operation(summary = "Busca usuario", description = "Localiza usuario buscando pelo email")
-    @ApiResponse(responseCode = "200", description = "Usuário encontrado com sucesso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    @ApiResponse(responseCode = "404", description = "Usuário não encontrado")
-    @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
-    public ResponseEntity<UsuarioDTOResponse> buscaUsuarioPorEmail(@RequestHeader("Authorization") String token, @RequestParam String email) {
-        return ResponseEntity.ok(usuarioService.buscaUsuarioPorEmail(token, email));
+    @Operation(summary = "Cadastrar um novo usuário", description = "Cria um novo usuário no sistema e retorna os dados cadastrados.")
+    @ApiResponse(responseCode = "201", description = "Usuário cadastrado com sucesso.")
+    @ApiResponse(responseCode = "400", description = "Dados de requisição inválidos.")
+    @ApiResponse(responseCode = "409", description = "E-mail já cadastrado no sistema.")
+    public ResponseEntity<RegisterUserResponse> cadastrarUsuario(@Valid @RequestBody RegisterUserRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.cadastrarUsuario(request));
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Login", description = "Login no sistema")
-    @ApiResponse(responseCode = "200", description = "Usuario logado com sucesso")
-    @ApiResponse(responseCode = "401", description = "Dados inválidos")
-    @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
-    public ResponseEntity<String> login(@RequestBody UsuarioLoginRequest dto) {
-        return ResponseEntity.ok(usuarioService.login(dto));
+    @Operation(summary = "Autenticar usuário", description = "Realiza o login do usuário e retorna o token de acesso.")
+    @ApiResponse(responseCode = "200", description = "Login efetuado com sucesso.")
+    @ApiResponse(responseCode = "401", description = "E-mail ou senha incorretos.")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(usuarioService.login(request));
+    }
+
+    @GetMapping
+    @Operation(summary = "Buscar usuário por e-mail", description = "Busca as informações de um usuário específico através do e-mail.")
+    @ApiResponse(responseCode = "200", description = "Usuário encontrado com sucesso.")
+    @ApiResponse(responseCode = "401", description = "Token de autorização ausente ou inválido.")
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.")
+    public ResponseEntity<UsuarioResponse> BuscarUsuarioPorEmail(@RequestHeader("Authorization") String token, @RequestParam String email) {
+        return ResponseEntity.ok(usuarioService.buscarUsuarioPorEmail(token, email));
     }
 
     @DeleteMapping("/{email}")
-    @Operation(summary = "Deleta usuário", description = "Deleta usuário do sistema")
-    @ApiResponse(responseCode = "204", description = "Usuario deletado com sucesso")
-    @ApiResponse(responseCode = "403", description = "Dados inválidos")
-    @ApiResponse(responseCode = "401", description = "Usuário não autenticado")
-    @ApiResponse(responseCode = "500", description = "Erro interno no servidor")
-    public ResponseEntity<Void> deletaUsuario(@RequestHeader("Authorization") String token, @PathVariable String email) {
-        usuarioService.deletaUsuario(token, email);
+    @Operation(summary = "Deletar usuário", description = "Remove um usuário do sistema baseado no e-mail informado.")
+    @ApiResponse(responseCode = "204", description = "Usuário deletado com sucesso (sem corpo de resposta).")
+    @ApiResponse(responseCode = "401", description = "Token de autorização ausente ou inválido.")
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.")
+    public ResponseEntity<Void> deletarUsuario(@RequestHeader("Authorization") String token, @PathVariable String email) {
+        usuarioService.deletarUsuario(token, email);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
+
+    @PutMapping
+    @Operation(summary = "Atualizar dados do usuário", description = "Altera as informações cadastrais do usuário.")
+    @ApiResponse(responseCode = "200", description = "Usuário atualizado com sucesso.")
+    @ApiResponse(responseCode = "400", description = "Dados de requisição inválidos.")
+    @ApiResponse(responseCode = "401", description = "Token de autorização ausente ou inválido.")
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.")
+    public ResponseEntity<UsuarioResponse> alteraUsuario(@RequestHeader("Authorization") String token, @Valid @RequestBody UsuarioRequest request) {
+        return ResponseEntity.ok().body(usuarioService.alteraUsuario(token, request));
+    }
+
 }
