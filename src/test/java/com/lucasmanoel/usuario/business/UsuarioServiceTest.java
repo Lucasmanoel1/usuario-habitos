@@ -1,13 +1,15 @@
 package com.lucasmanoel.usuario.business;
 
-import com.lucasmanoel.usuario.business.converter.UsuarioConverter;
-import com.lucasmanoel.usuario.business.dto.UsuarioDTO;
-import com.lucasmanoel.usuario.business.dto.UsuarioDTOResponse;
-import com.lucasmanoel.usuario.business.dto.UsuarioLoginRequest;
+import com.lucasmanoel.usuario.business.dto.request.LoginRequest;
+import com.lucasmanoel.usuario.business.dto.request.RegisterUserRequest;
+import com.lucasmanoel.usuario.business.dto.request.UsuarioRequest;
+import com.lucasmanoel.usuario.business.dto.response.LoginResponse;
+import com.lucasmanoel.usuario.business.dto.response.RegisterUserResponse;
+import com.lucasmanoel.usuario.business.dto.response.UsuarioResponse;
 import com.lucasmanoel.usuario.infrastructure.entity.UsuarioEntity;
 import com.lucasmanoel.usuario.infrastructure.exceptions.ConflictException;
 import com.lucasmanoel.usuario.infrastructure.repository.UsuarioRepository;
-import com.lucasmanoel.usuario.infrastructure.security.JwtUtil;
+import com.lucasmanoel.usuario.infrastructure.security.TokenConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,11 +35,9 @@ class UsuarioServiceTest {
     UsuarioRepository usuarioRepository;
 
 
-    @Mock
-    UsuarioConverter usuarioConverter;
 
     @Mock
-    JwtUtil jwtUtil;
+    TokenConfig tokenConfig;
 
     @Mock
     PasswordEncoder passwordEncoder;
@@ -49,99 +49,94 @@ class UsuarioServiceTest {
     AuthenticationManager authenticationManager;
 
     String token = "Bearer 324234324324sfdfsdf434343";
-    String habitoId = "abc123";
     String email = "lucas@gmail.com";
+    String password = "123";
 
-    UsuarioDTO dto = UsuarioDTO.builder()
-            .email(email)
-            .senha("123")
-            .build();
+    UsuarioEntity entity = new UsuarioEntity(
+            email,
+            password,
+            "lucasmaneol"
+    );
 
-    UsuarioEntity entity = UsuarioEntity.builder()
-            .email(email)
-            .id(321L)
-            .nome("Lucas Manoel")
-            .senha("123456")
-            .build();
+    RegisterUserRequest request = new RegisterUserRequest(entity.getUsername(), email, password);
 
     @BeforeEach
     public void setUp() {
 
-        lenient().when(jwtUtil.extrairEmailToken("324234324324sfdfsdf434343")).thenReturn(email);
+        lenient().when(tokenConfig.extrairEmailToken("324234324324sfdfsdf434343")).thenReturn(email);
     }
 
     @Test
     void deveCadastrarUsuarioComSucesso() {
 
-        UsuarioEntity entity = UsuarioEntity.builder()
-                .email(email)
-                .senha("senha_criptografada")
-                .build();
+        when(usuarioRepository.existsByEmail(anyString())).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("senhaCriptografada");
 
-        UsuarioDTOResponse responseEsperado = new UsuarioDTOResponse("Nome", email);
-
-        when(usuarioRepository.existsByEmail(email)).thenReturn(false);
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("senha_criptografada");
-        when(usuarioConverter.paraUsuarioEntity(dto)).thenReturn(entity);
-        when(usuarioRepository.save(entity)).thenReturn(entity);
-        when(usuarioConverter.paraUsuarioDTOResponse(entity)).thenReturn(responseEsperado);
-
-        UsuarioDTOResponse resultado = usuarioService.cadastraUsuario(dto);
+        RegisterUserResponse resultado = usuarioService.cadastrarUsuario(request);
 
         assertNotNull(resultado);
         assertEquals(email, resultado.email());
 
-        verify(usuarioRepository, times(1)).save(entity);
+        verify(usuarioRepository, times(1)).save(any());
     }
 
     @Test
     void deveLancarErroQuandoEmailExistir() {
         when(usuarioRepository.existsByEmail(email)).thenReturn(true);
-        assertThrows(ConflictException.class, () -> usuarioService.cadastraUsuario(dto));
+        assertThrows(ConflictException.class, () -> usuarioService.cadastrarUsuario(request));
     }
-
+//
     @Test
     void deveFazerLoginComSucesso() {
-        UsuarioLoginRequest loginRequest = new UsuarioLoginRequest(email, "123");
 
+        LoginRequest request = new LoginRequest(email, password);
         when(authenticationManager.authenticate(any())).thenReturn(authentication);
-        when(authentication.getName()).thenReturn(email);
-        when(jwtUtil.generateToken(email)).thenReturn("324234324324sfdfsdf434343");
+        when(authentication.getPrincipal()).thenReturn(entity);
+        when(tokenConfig.generateToken(any())).thenReturn(token);
 
-        String resultado = usuarioService.login(loginRequest);
+        LoginResponse resultado = usuarioService.login(request);
 
-        assertEquals(token, resultado);
+        assertNotNull(resultado);
+        assertEquals(token, resultado.token());
+
+        verify(authenticationManager, times(1)).authenticate(any());
+        verify(tokenConfig, times(1)).generateToken(any());
     }
-
+//
     @Test
     void deveBuscarUsuarioPorEmailComSucesso() {
-        when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(entity));
-        when(usuarioConverter.paraUsuarioDTOResponse(entity))
-                .thenReturn(new UsuarioDTOResponse("Lucas Manoel", email));
 
-        UsuarioDTOResponse resultado = usuarioService.buscaUsuarioPorEmail(token, email);
+        when(usuarioRepository.findByEmail(anyString())).thenReturn(Optional.of(entity));
+
+        UsuarioResponse resultado = usuarioService.buscarUsuarioPorEmail(token, email);
 
         assertEquals(email, resultado.email());
     }
 
     @Test
     void deveDeletarUsuarioPorEmailComSucesso() {
-        when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(entity));
+        when(usuarioRepository.findByEmail(anyString())).thenReturn(Optional.of(entity));
 
-        usuarioService.deletaUsuario(token, email);
+        usuarioService.deletarUsuario(token, email);
         verify(usuarioRepository, times(1)).deleteByEmail(email);
     }
 
     @Test
     void deveAlterarUsuarioComSenhaComSucesso() {
-        when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(entity));
-        when(usuarioConverter.alterarUsuario(dto, entity)).thenReturn(entity);
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("senha_criptografada");
-        when(usuarioRepository.save(entity)).thenReturn(entity);
 
-        usuarioService.alteraUsuario(token, dto);
+        UsuarioRequest outro = new UsuarioRequest(
+                "test",
+                "email@Test",
+                "password123"
+        );
 
-        verify(passwordEncoder, times(1)).encode(dto.getSenha());
+        when(usuarioRepository.findByEmail(anyString())).thenReturn(Optional.of(entity));
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("senhaCriptografada");
+
+        usuarioService.alteraUsuario(token, outro);
+        verify(passwordEncoder, times(1)).matches(anyString(), anyString());
+        verify(passwordEncoder, times(1)).encode(anyString());
         verify(usuarioRepository, times(1)).save(entity);
     }
 

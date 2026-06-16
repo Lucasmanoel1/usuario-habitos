@@ -8,27 +8,33 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Entity
+@Data
 @Table(name = "usuario")
-@Builder
+@AllArgsConstructor
 public class UsuarioEntity implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
-    @Column(name = "nome", length = 100)
-    private String nome;
-    @Column(name = "email", length = 255)
+    private String username;
     private String email;
-    @Column(name = "senha", length = 1000)
-    private String senha;
+    private String password;
 
 
+    public UsuarioEntity() {}
+    public UsuarioEntity(String email, String password, String username) {
+        this.email = email;
+        this.password = password;
+        this.username = username;
+    }
 
+
+    @Override
+    public String getUsername() {
+        return username;
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -36,12 +42,24 @@ public class UsuarioEntity implements UserDetails {
     }
 
     @Override
-    public String getPassword() {
-        return this.senha;
+    public boolean isAccountNonExpired() {
+        return true;
     }
 
     @Override
-    public String getUsername() {
-        return this.email;
+    public boolean isAccountNonLocked() {
+        return true;
     }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+
+
 }
